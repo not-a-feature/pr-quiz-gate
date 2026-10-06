@@ -10,6 +10,7 @@ import tempfile
 import tomllib
 import uuid
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
@@ -59,8 +60,11 @@ GRADE_SCHEMA = {
 def request_json(url, headers, payload=None, method="GET"):
     data = None if payload is None else json.dumps(payload).encode()
     request = Request(url, data=data, headers=headers, method=method)
-    with urlopen(request, timeout=120) as response:
-        return json.load(response)
+    try:
+        with urlopen(request, timeout=120) as response:
+            return json.load(response)
+    except HTTPError as error:
+        raise RuntimeError(f"{method} {url}: HTTP {error.code}: {error.read().decode()}") from error
 
 
 def github(path, payload=None, method="GET"):

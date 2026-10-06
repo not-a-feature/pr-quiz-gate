@@ -30,7 +30,7 @@ workflow files, and manage repository Actions secrets/variables. Supply the sele
 provider credential through the environment, never as a command-line argument.
 
 ```sh
-uv run python install.py OWNER/REPO --action ACTION_OWNER/quiz-gate@v1 
+uv run python install.py OWNER/REPO --action ACTION_OWNER/quiz-gate@v1
 ```
 
 This previews the workflow without contacting GitHub. Add `--apply` to configure
