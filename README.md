@@ -183,7 +183,12 @@ The bot supplies full changed-file text, patches where available, and human issu
 comments. It does not yet fetch unchanged dependencies, review threads, or local
 agent sessions. Missing decision provenance stays unknown; Git author metadata
 does not establish who made a decision. Binary/oversized files or excessive context
-fail rather than silently omit evidence. Narrow the PR or use a recorded override.
+fail rather than silently omit evidence. For a context-limit error, set the action
+input `max-context-chars` above the reported size, within the selected model's
+input limit (for example, `max-context-chars: '500000'`). The budget includes PR
+discussion and previous questions on retries. Requests use compact JSON without
+escaping Unicode. If the evidence still does not fit, narrow the PR or use a
+recorded override.
 
 New head commits reset the quiz. A changed base or policy invalidates submitted
 answers; request `/quiz` to refresh. Base-branch changes without a PR event do not

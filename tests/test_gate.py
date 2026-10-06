@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import copy
 import json
 import os
@@ -146,6 +147,46 @@ class GateTests(unittest.TestCase):
                 patch.object(gate, "request_json", return_value={"stop_reason": "max_tokens"}):
             with self.assertRaises(AssertionError):
                 gate.claude("generate.md", {}, gate.QUIZ_SCHEMA)
+
+
+class ContextTests(unittest.TestCase):
+    def setUp(self):
+        self.cfg = gate.config()
+        self.pr = {"title": "Change", "body": "Details",
+                   "head": {"sha": "head", "repo": {"full_name": "owner/repo"}},
+                   "base": {"sha": "base"}}
+        self.files = [{"filename": "main.py", "status": "modified", "patch": "+new behavior"}]
+        self.content = {"type": "file", "encoding": "base64", "size": 400,
+                        "content": base64.b64encode(("x" * 400).encode()).decode()}
+
+    def context(self, previous=()):
+        with patch.object(gate, "pages", side_effect=[self.files, []]), \
+                patch.object(gate, "github", return_value=self.content):
+            return gate.context("owner/repo", 1, self.pr, self.cfg, previous)
+
+    def test_budget_can_be_increased_without_losing_evidence(self):
+        self.cfg["max_context_chars"] = 450
+        with self.assertRaisesRegex(AssertionError, "Context needs .*main.py.*Increase max-context-chars"):
+            self.context()
+        self.cfg["max_context_chars"] = 2000
+        data = self.context()
+        self.assertEqual(data["files"][0]["source"], "x" * 400)
+        self.assertEqual(data["files"][0]["patch"], "+new behavior")
+
+    def test_retry_questions_count_toward_the_transmitted_budget(self):
+        data = self.context()
+        self.cfg["max_context_chars"] = len(gate.model_input(data))
+        self.context()
+        with self.assertRaisesRegex(AssertionError, "Context needs"):
+            self.context([question()])
+
+    def test_unicode_is_preserved_in_the_measured_payload(self):
+        self.pr["body"] = "β" * 100
+        data = self.context()
+        self.cfg["max_context_chars"] = len(gate.model_input(data))
+        transmitted = gate.model_input(self.context())
+        self.assertIn("β" * 100, transmitted)
+        self.assertEqual(json.loads(transmitted), data)
 
 
 class WorkflowTests(unittest.TestCase):

@@ -48,7 +48,7 @@ inputs:
     description: Maximum changed files before requiring a narrower PR or override.
     default: '30'
   max-context-chars:
-    description: Maximum evidence characters sent to Claude.
+    description: Maximum serialized evidence characters sent to the selected model; increase within its input limit.
     default: '100000'
 runs:
   using: composite

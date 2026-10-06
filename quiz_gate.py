@@ -111,6 +111,10 @@ def policy_digest(cfg):
     return hashlib.sha256(json.dumps(policy, sort_keys=True).encode()).hexdigest()
 
 
+def model_input(data):
+    return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+
+
 def claude(prompt_name, data, schema):
     response = request_json("https://api.anthropic.com/v1/messages", {
         "x-api-key": os.environ["ANTHROPIC_API_KEY"], "anthropic-version": "2023-06-01",
@@ -118,7 +122,7 @@ def claude(prompt_name, data, schema):
     }, {
         "model": os.environ["CLAUDE_MODEL"], "max_tokens": 8000,
         "system": (ROOT / "prompts" / prompt_name).read_text(),
-        "messages": [{"role": "user", "content": json.dumps(data)}],
+        "messages": [{"role": "user", "content": model_input(data)}],
         "output_config": {"format": {"type": "json_schema", "schema": schema}},
     }, "POST")
     assert response["stop_reason"] == "end_turn", "Incomplete model response."
@@ -149,7 +153,7 @@ async def copilot(prompt_name, data, schema):
                 enable_host_git_operations=False, enable_session_store=False,
                 system_message={"mode": "append", "content": (ROOT / "prompts" / prompt_name).read_text()},
             ) as session:
-                response = await session.send_and_wait(json.dumps(data), response_schema=schema, timeout=180)
+                response = await session.send_and_wait(model_input(data), response_schema=schema, timeout=180)
                 assert response is not None, "Copilot returned no answer."
                 result = json.loads(response.data.content)
                 validate(result, schema)
@@ -282,7 +286,7 @@ def post_state(repo, number, pr, state, text):
     github(f"/repos/{repo}/issues/{number}/comments", {"body": body}, "POST")
 
 
-def context(repo, number, pr, cfg):
+def context(repo, number, pr, cfg, previous=()):
     files = pages(f"/repos/{repo}/pulls/{number}/files")
     assert len(files) <= cfg["max_files"], "Change set exceeds configured file limit; narrow or override."
     evidence = []
@@ -295,7 +299,11 @@ def context(repo, number, pr, cfg):
         else:
             source_repo, source_sha = pr["head"]["repo"]["full_name"], pr["head"]["sha"]
         content = github(f"/repos/{source_repo}/contents/{quote(item['filename'], safe='/')}?ref={source_sha}")
-        assert content["size"] <= cfg["max_context_chars"], "File exceeds evidence budget."
+        assert content["size"] <= cfg["max_context_chars"], (
+            f"{item['filename']}: {content['size']:,} bytes exceeds the "
+            f"{cfg['max_context_chars']:,}-character evidence budget. "
+            "Increase max-context-chars or narrow the PR."
+        )
         assert content["type"] == "file" and content["encoding"] == "base64", "Unsupported file; refusing partial context."
         entry["source"] = base64.b64decode(content["content"]).decode("utf-8")
         evidence.append(entry)
@@ -304,16 +312,22 @@ def context(repo, number, pr, cfg):
                    for item in comments if item["user"]["type"] == "User"]
     data = {"title": pr["title"], "description": pr["body"], "files": evidence,
             "discussion": discussions, "max_questions": cfg["max_questions"],
-            "question_types": cfg["question_types"]}
-    assert len(json.dumps(data)) <= cfg["max_context_chars"], "Context limit exceeded; refusing silent truncation."
+            "question_types": cfg["question_types"], "previous_questions": list(previous),
+            "retry_instruction": "Use fresh questions, not previously revealed answers."}
+    size = len(model_input(data))
+    largest = sorted(((len(model_input(item)), item["path"]) for item in evidence), reverse=True)[:3]
+    assert size <= cfg["max_context_chars"], (
+        f"Context needs {size:,} characters; max-context-chars is {cfg['max_context_chars']:,}. "
+        f"Largest file contributions (source and patch): {largest}. "
+        "Increase max-context-chars within your model's input limit or narrow the PR; "
+        "no evidence was truncated."
+    )
     return data
 
 
 def create_quiz(repo, number, pr, cfg, attempt, previous):
     status(repo, pr["head"]["sha"], cfg, "pending", "Awaiting comprehension quiz")
-    data = context(repo, number, pr, cfg)
-    data["previous_questions"] = previous
-    data["retry_instruction"] = "Use fresh questions, not previously revealed answers."
+    data = context(repo, number, pr, cfg, previous)
     quiz = model_output("generate.md", data, QUIZ_SCHEMA)
     validate_quiz(quiz, cfg)
     state = {"repo": repo, "pr": number, "sha": pr["head"]["sha"], "base_sha": pr["base"]["sha"],
