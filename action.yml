@@ -8,7 +8,7 @@ inputs:
     description: Inference provider; claude or copilot.
     default: claude
   github-token:
-    description: Token with contents/pull-requests read and issues/statuses write permissions.
+    description: Token with contents read and pull-requests/statuses write permissions.
     required: true
     default: ${{ github.token }}
   anthropic-api-key:
