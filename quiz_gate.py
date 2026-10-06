@@ -26,8 +26,11 @@ QUESTION_SCHEMA = {
         "topic": {"type": "string"}, "kind": {"enum": ["comprehension", "decision"]},
         "type": {"enum": ["multiple_choice", "free_text"]},
         "question": {"type": "string"},
-        "options": {"type": "array", "items": {"type": "string"}},
-        "correct_option": {"type": "string"}, "rubric": {"type": "string"},
+        "options": {"anyOf": [
+            {"type": "array", "items": {"type": "string"}, "minItems": 4, "maxItems": 4},
+            {"type": "array", "items": {"type": "string"}, "maxItems": 0},
+        ]},
+        "correct_option": {"enum": ["", "A", "B", "C", "D"]}, "rubric": {"type": "string"},
         "explanation": {"type": "string"},
         "evidence": {"type": "array", "items": {"type": "string"}},
     },
@@ -239,14 +242,25 @@ def grade(state, answers):
     return sorted(results, key=lambda item: item["id"])
 
 
+def state_key():
+    if "QUIZ_STATE_KEY" in os.environ and os.environ["QUIZ_STATE_KEY"].strip():
+        return os.environ["QUIZ_STATE_KEY"].encode()
+    engine = os.environ["QUIZ_ENGINE"]
+    credential = "COPILOT_GITHUB_TOKEN" if engine == "copilot" else "ANTHROPIC_API_KEY"
+    secret = os.environ[credential]
+    assert secret.strip(), f"Set {credential} or provide an explicit state-key."
+    material = "pr-quiz-gate/state/v1\0" + os.environ["GITHUB_REPOSITORY"] + "\0" + secret
+    return base64.urlsafe_b64encode(hashlib.sha256(material.encode()).digest())
+
+
 def encode_state(state):
-    return Fernet(os.environ["QUIZ_STATE_KEY"].encode()).encrypt(json.dumps(state).encode()).decode()
+    return Fernet(state_key()).encrypt(json.dumps(state).encode()).decode()
 
 
 def decode_state(body):
     tokens = re.findall(r"<!-- quiz-gate:([A-Za-z0-9_=-]+) -->", body)
     assert len(tokens) == 1, "Invalid state marker."
-    return json.loads(Fernet(os.environ["QUIZ_STATE_KEY"].encode()).decrypt(tokens[0].encode()))
+    return json.loads(Fernet(state_key()).decrypt(tokens[0].encode()))
 
 
 def load_state(prefix):

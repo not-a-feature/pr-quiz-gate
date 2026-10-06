@@ -28,3 +28,7 @@ references naming supplied files and relevant code. Do not invent unseen context
 If context is insufficient, ask what can be established and what remains unknown.
 Do not present a defect as valid merely because it is implemented.
 Never reveal the correct option in the public question or options.
+
+For multiple_choice, options must contain exactly four nonempty option texts in
+A-D order without letter prefixes. correct_option must be exactly one uppercase
+letter (A, B, C, or D), not the option text or a numbered index.

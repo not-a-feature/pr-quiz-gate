@@ -25,6 +25,4 @@ jobs:
         with:
           engine: copilot
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-          state-key: ${{ secrets.QUIZ_STATE_KEY }}
-          model: ${{ vars.COPILOT_MODEL }}
           mode: advisory

@@ -19,25 +19,23 @@ config discovery, file hooks, or host Git operations. The runtime receives neith
 the state encryption key nor the Anthropic key. JSON responses are locally schema-validated.
 
 Use `examples/quiz-gate-copilot.yml` for Copilot instead of the Claude workflow.
-Configure `COPILOT_GITHUB_TOKEN` as a repository secret and `COPILOT_MODEL` as a
-repository variable. For personal authentication, use a fine-grained token owned
+Configure only `COPILOT_GITHUB_TOKEN` as a repository secret. The model defaults
+to `gpt-5-mini`; the `model` input is an optional override. For personal authentication, use a fine-grained token owned
 by a user with Copilot access, with the account-level Copilot Requests permission
 set to Read. The action's repository `GITHUB_TOKEN` is separate from inference auth.
 No Anthropic account or key is needed for Copilot.
 
-Once the Action is published, the installer can prepare the workflow, secrets, and
-model variable together. Authenticate `gh` with permission to create PRs, write
+Once the Action is published, the installer can prepare the workflow and provider secret together. Authenticate `gh` with permission to create PRs, write
 workflow files, and manage repository Actions secrets/variables. Supply the selected
 provider credential through the environment, never as a command-line argument.
 
 ```sh
-uv run python install.py OWNER/REPO --action ACTION_OWNER/quiz-gate@v1 --model MODEL_ID
+uv run python install.py OWNER/REPO --action ACTION_OWNER/quiz-gate@v1 
 ```
 
 This previews the workflow without contacting GitHub. Add `--apply` to configure
 the repository and open a setup PR; merge that PR after reviewing it. The installer
-defaults to Copilot and advisory mode. Use `--engine claude` for Claude. It preserves
-an existing state key and refuses to overwrite an existing quiz workflow. It does
+defaults to Copilot and advisory mode. Use `--engine claude` for Claude. It requires only the provider token and refuses to overwrite an existing quiz workflow. It does
 not merge the setup PR or change branch protection. If an API operation fails,
 earlier successful operations may remain; errors are not silently retried.
 
@@ -66,7 +64,7 @@ Consumers need only one workflow file; no Python files, dependency manifests,
 configuration files, or repository checkout are needed in the target repository.
 The action installs its own locked dependencies and reads PR evidence via the API.
 
-This action has not been published yet. After publishing, replace `YOUR_ORG` in
+Replace `YOUR_ORG` in
 `examples/quiz-gate.yml` with the actual owner and copy that file to the target
 repository's default branch as `.github/workflows/quiz-gate.yml`. Use the released
 version or commit SHA. The key step is:
@@ -75,29 +73,20 @@ version or commit SHA. The key step is:
 - uses: YOUR_ORG/quiz-gate@v1
   with:
     anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-    state-key: ${{ secrets.QUIZ_STATE_KEY }}
-    model: ${{ vars.CLAUDE_MODEL }}
     mode: advisory
 ```
 
 Use the complete example workflow: the triggers, permissions, event filter, and
 per-PR concurrency are required for generation, answers, and reliable state updates.
 
-Configure these GitHub Actions secrets/variables:
+Configure the selected provider token as a repository secret:
 
-| Name | Kind | Purpose |
-| --- | --- | --- |
-| `ANTHROPIC_API_KEY` | Secret | Claude API access and billing, only for Claude |
-| `COPILOT_GITHUB_TOKEN` | Secret | Copilot inference access, only for Copilot |
-| `QUIZ_STATE_KEY` | Secret | Encrypt and authenticate persisted answer keys |
-| `CLAUDE_MODEL` | Variable | Model ID supporting Anthropic structured JSON output |
-| `COPILOT_MODEL` | Variable | Model ID available to the Copilot account |
+- Copilot: `COPILOT_GITHUB_TOKEN`
+- Claude: `ANTHROPIC_API_KEY`
 
-Generate the state key locally and store it as a secret; do not commit it:
-
-```sh
-uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-```
+The state key is derived automatically from the provider token and repository
+identity. `state-key` can optionally reference a separate stable Fernet key.
+Set the `model` input only to override the provider's default model.
 
 The workflow runs on non-draft PR openings/updates and `/quiz` comments. The reusable
 action needs no checkout; PR files are fetched as data through GitHub's API.
@@ -206,3 +195,22 @@ GitHub App or centrally protected workflow rather than trusting per-repository a
 References: [required checks](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets),
 [commit statuses](https://docs.github.com/en/rest/commits/statuses),
 [Claude structured output](https://platform.claude.com/docs/en/build-with-claude/structured-outputs).
+
+## Minimal setup
+
+Copilot needs only the `COPILOT_GITHUB_TOKEN` repository secret. The Action uses
+`gpt-5-mini` by default and derives a repository-specific Fernet state key from
+the provider token. `model` and `state-key` are optional overrides. Token rotation
+invalidates existing quizzes unless you supply a separate stable `state-key`.
+The derived key is not passed to the model or Copilot runtime.
+
+```yaml
+- uses: not-a-feature/pr-quiz-gate@TESTED_COMMIT_SHA
+  with:
+    engine: copilot
+    copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+    mode: required
+```
+
+GitHub branch rules must require the `quiz-gate` status to enforce merging.
+No additional secret is needed for that rule.

@@ -101,6 +101,16 @@ class GateTests(unittest.TestCase):
                 with self.assertRaises(InvalidToken):
                     gate.decode_state(f"<!-- quiz-gate:{token} -->")
 
+    def test_derived_state_key_is_bound_to_repository_and_token(self):
+        with patch.dict(os.environ, {"QUIZ_STATE_KEY": "", "QUIZ_ENGINE": "copilot",
+                                     "COPILOT_GITHUB_TOKEN": "first-token", "GITHUB_REPOSITORY": "owner/one"}):
+            state = {"answer": "secret"}
+            encrypted = gate.encode_state(state)
+            self.assertEqual(gate.decode_state(f"<!-- quiz-gate:{encrypted} -->"), state)
+            for changed in [{"GITHUB_REPOSITORY": "owner/two"}, {"COPILOT_GITHUB_TOKEN": "second-token"}]:
+                with patch.dict(os.environ, changed), self.assertRaises(InvalidToken):
+                    gate.decode_state(f"<!-- quiz-gate:{encrypted} -->")
+
     def test_stale_commit_base_policy_or_respondent_rejected(self):
         pr = {"head": {"sha": "head"}, "base": {"sha": "base"}, "user": {"login": "human"}}
         state = {"repo": "owner/repo", "pr": 1, "sha": "head", "base_sha": "base",
@@ -348,14 +358,14 @@ class InstallerTests(unittest.TestCase):
     def test_existing_workflow_is_not_overwritten(self):
         responses = [json.dumps({"default_branch": "main"}),
                      json.dumps({"truncated": False, "tree": [{"path": install.WORKFLOW}]})]
-        arguments = ["install.py", "owner/repo", "--action", "owner/quiz-gate@v1", "--model", "model-id", "--apply"]
+        arguments = ["install.py", "owner/repo", "--action", "owner/quiz-gate@v1", "--apply"]
         with patch("sys.argv", arguments), patch.dict(os.environ, {"COPILOT_GITHUB_TOKEN": "fake"}), \
                 patch.object(install, "gh", side_effect=responses) as api:
             with self.assertRaises(AssertionError):
                 install.main()
             self.assertEqual(api.call_count, 2)
 
-    def test_apply_preserves_state_key_and_opens_setup_pr(self):
+    def test_apply_needs_only_provider_token_and_opens_setup_pr(self):
         calls = []
 
         def api(arguments, content=""):
@@ -372,13 +382,14 @@ class InstallerTests(unittest.TestCase):
                 return json.dumps({"html_url": "https://github.com/owner/repo/pull/1"})
             return "{}"
 
-        arguments = ["install.py", "owner/repo", "--action", "owner/quiz-gate@v1", "--model", "model-id", "--apply"]
+        arguments = ["install.py", "owner/repo", "--action", "owner/quiz-gate@v1", "--apply"]
         with patch("sys.argv", arguments), patch.dict(os.environ, {"COPILOT_GITHUB_TOKEN": "fake-secret"}), \
                 patch.object(install, "gh", side_effect=api), patch("builtins.print"):
             install.main()
         self.assertFalse(any(args[:3] == ["secret", "set", "QUIZ_STATE_KEY"] for args, body in calls))
         self.assertTrue(any(args[:3] == ["secret", "set", "COPILOT_GITHUB_TOKEN"] and body == "fake-secret" for args, body in calls))
         self.assertFalse(any("fake-secret" in args for args, body in calls))
+        self.assertFalse(any(args[0] == "variable" for args, body in calls))
         self.assertTrue(any(args[1] == "repos/owner/repo/pulls" for args, body in calls))
 
 

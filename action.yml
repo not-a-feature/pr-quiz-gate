@@ -18,11 +18,11 @@ inputs:
     description: Copilot-enabled token; personal tokens need Copilot Requests read permission.
     required: false
   state-key:
-    description: Stable Fernet key used to encrypt and authenticate quiz state across runs.
-    required: true
+    description: Optional stable Fernet key; defaults to a repository-specific key derived from the provider token.
+    required: false
   model:
-    description: Model ID supported by the selected engine.
-    required: true
+    description: Optional model ID; defaults to gpt-5-mini for Copilot or claude-sonnet-4-6 for Claude.
+    required: false
   mode:
     description: advisory reports results without blocking; required enforces passing.
     default: advisory
@@ -72,8 +72,8 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
         QUIZ_STATE_KEY: ${{ inputs.state-key }}
-        CLAUDE_MODEL: ${{ inputs.model }}
-        COPILOT_MODEL: ${{ inputs.model }}
+        CLAUDE_MODEL: ${{ inputs.model || 'claude-sonnet-4-6' }}
+        COPILOT_MODEL: ${{ inputs.model || 'gpt-5-mini' }}
         COPILOT_GITHUB_TOKEN: ${{ inputs.copilot-token }}
         QUIZ_ENGINE: ${{ inputs.engine }}
         QUIZ_MODE: ${{ inputs.mode }}

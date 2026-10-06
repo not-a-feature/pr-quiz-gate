@@ -26,6 +26,4 @@ jobs:
       - uses: YOUR_ORG/quiz-gate@v1
         with:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          state-key: ${{ secrets.QUIZ_STATE_KEY }}
-          model: ${{ vars.CLAUDE_MODEL }}
           mode: advisory
