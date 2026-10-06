@@ -34,3 +34,18 @@ For a large PR, set `max-context-chars` above its reported evidence size and wit
 the chosen model's input limit. Evidence is retained in full rather than truncated.
 Only promote the tested commit after the hosted test passes. Existing release tags
 remain unchanged throughout testing.
+
+## Verified integration, 2026-10-06
+
+The tested runtime commit is `4ba4da09d2f6f9acf53e1d1665c1bdca9f9c1a81`.
+The repository had only the `COPILOT_GITHUB_TOKEN` secret and no model variable.
+37 regression tests also passed on GitHub-hosted Linux.
+
+- [Question generation](https://github.com/not-a-feature/TabPFN-Wide-Revision/actions/runs/37469356044) succeeded while the required status remained pending and merging was blocked.
+- [Incorrect answers](https://github.com/not-a-feature/TabPFN-Wide-Revision/actions/runs/37469530997) produced failure and blocked merging; free text was graded through Copilot.
+- [Two correct answers out of three](https://github.com/not-a-feature/TabPFN-Wide-Revision/actions/runs/37469806070) produced success and made the synthetic PR mergeable.
+- [A new commit](https://github.com/not-a-feature/TabPFN-Wide-Revision/actions/runs/37469943232) generated a fresh quiz and blocked merging again.
+
+These evidence links are in a private repository and require access. The synthetic
+fixture was never merged into the research project. Marketplace releases were not
+changed.

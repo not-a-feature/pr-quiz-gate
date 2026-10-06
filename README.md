@@ -162,11 +162,12 @@ App would be a separate route for a one-click repository installation.
 
 ## Limits and verification
 
-This is an initial implementation, not a deployed GitHub integration. Unit tests
+This implementation has been exercised on a private GitHub repository with synthetic
+PRs and required status rules. Regression tests
 cover scoring, answer parsing, authenticated state, stale revisions, bot-origin
-checks, action input configuration, provider isolation, and incomplete model grading. Live API calls,
-the hosted composite action, and GitHub ruleset behavior
-require an integration trial in a target repository with credentials.
+checks, action input configuration, provider isolation, and incomplete model grading. Hosted tests cover generation, incorrect answers, majority passing, and
+new-commit invalidation. Installations should repeat the integration procedure
+in `INTEGRATION_TESTING.md` with their own provider access and branch rules.
 
 The bot supplies full changed-file text, patches where available, and human issue
 comments. It does not yet fetch unchanged dependencies, review threads, or local
