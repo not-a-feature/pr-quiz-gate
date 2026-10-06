@@ -1,0 +1,31 @@
+name: Quiz gate
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+permissions:
+  contents: read
+  pull-requests: read
+  issues: write
+  statuses: write
+concurrency:
+  group: quiz-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: false
+jobs:
+  quiz:
+    if: >-
+      (github.event_name == 'pull_request_target' && !github.event.pull_request.draft) ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+      github.event.comment.user.type == 'User' && startsWith(github.event.comment.body, '/quiz'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Replace YOUR_ORG and the version after publishing the action.
+      # No checkout of the consuming repository is needed.
+      - uses: YOUR_ORG/quiz-gate@v1
+        with:
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          state-key: ${{ secrets.QUIZ_STATE_KEY }}
+          model: ${{ vars.CLAUDE_MODEL }}
+          mode: advisory

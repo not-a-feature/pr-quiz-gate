@@ -1,0 +1,96 @@
+name: PR Comprehension Quiz Gate
+description: Ask evidence-grounded PR questions and check human understanding before merging.
+branding:
+  icon: help-circle
+  color: blue
+inputs:
+  engine:
+    description: Inference provider; claude or copilot.
+    default: claude
+  github-token:
+    description: Token with contents/pull-requests read and issues/statuses write permissions.
+    required: true
+    default: ${{ github.token }}
+  anthropic-api-key:
+    description: Anthropic API key for generating questions and grading free text.
+    required: false
+  copilot-token:
+    description: Copilot-enabled token; personal tokens need Copilot Requests read permission.
+    required: false
+  state-key:
+    description: Stable Fernet key used to encrypt and authenticate quiz state across runs.
+    required: true
+  model:
+    description: Model ID supported by the selected engine.
+    required: true
+  mode:
+    description: advisory reports results without blocking; required enforces passing.
+    default: advisory
+  max-questions:
+    description: Maximum number of relevant questions (1-10).
+    default: '3'
+  question-types:
+    description: Comma-separated question types; include free_text for decision questions.
+    default: multiple_choice,free_text
+  pass-rule:
+    description: strict_majority or percentage.
+    default: strict_majority
+  pass-percentage:
+    description: Percentage required when pass-rule is percentage.
+    default: '80'
+  max-attempts:
+    description: Maximum quiz attempts per PR revision (1-10).
+    default: '3'
+  allow-override:
+    description: Allow maintain/admin users to override with a recorded reason.
+    default: 'true'
+  max-files:
+    description: Maximum changed files before requiring a narrower PR or override.
+    default: '30'
+  max-context-chars:
+    description: Maximum evidence characters sent to Claude.
+    default: '100000'
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@v6
+      with:
+        python-version: '3.12'
+    - name: Install action dependencies
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: uv sync --locked
+    - name: Download pinned Copilot runtime
+      if: inputs.engine == 'copilot'
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: uv run --no-sync python -m copilot download-runtime
+    - name: Run comprehension quiz
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        QUIZ_STATE_KEY: ${{ inputs.state-key }}
+        CLAUDE_MODEL: ${{ inputs.model }}
+        COPILOT_MODEL: ${{ inputs.model }}
+        COPILOT_GITHUB_TOKEN: ${{ inputs.copilot-token }}
+        QUIZ_ENGINE: ${{ inputs.engine }}
+        QUIZ_MODE: ${{ inputs.mode }}
+        QUIZ_MAX_QUESTIONS: ${{ inputs.max-questions }}
+        QUIZ_QUESTION_TYPES: ${{ inputs.question-types }}
+        QUIZ_PASS_RULE: ${{ inputs.pass-rule }}
+        QUIZ_PASS_PERCENTAGE: ${{ inputs.pass-percentage }}
+        QUIZ_MAX_ATTEMPTS: ${{ inputs.max-attempts }}
+        QUIZ_ALLOW_OVERRIDE: ${{ inputs.allow-override }}
+        QUIZ_MAX_FILES: ${{ inputs.max-files }}
+        QUIZ_MAX_CONTEXT_CHARS: ${{ inputs.max-context-chars }}
+      run: uv run --no-sync python quiz_gate.py
+    - name: Report quiz failure
+      if: failure()
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        QUIZ_MODE: ${{ inputs.mode }}
+      run: uv run --no-sync python quiz_gate.py error

@@ -1,0 +1,30 @@
+name: Quiz gate
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+permissions:
+  contents: read
+  pull-requests: read
+  issues: write
+  statuses: write
+concurrency:
+  group: quiz-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: false
+jobs:
+  quiz:
+    if: >-
+      (github.event_name == 'pull_request_target' && !github.event.pull_request.draft) ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+      github.event.comment.user.type == 'User' && startsWith(github.event.comment.body, '/quiz'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: YOUR_ORG/quiz-gate@v1
+        with:
+          engine: copilot
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          state-key: ${{ secrets.QUIZ_STATE_KEY }}
+          model: ${{ vars.COPILOT_MODEL }}
+          mode: advisory

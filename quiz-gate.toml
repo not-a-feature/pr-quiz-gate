@@ -1,0 +1,9 @@
+mode = "advisory" # Change to "required" and require the quiz-gate status in GitHub.
+max_questions = 3
+question_types = ["multiple_choice", "free_text"]
+pass_rule = "strict_majority" # Or "percentage".
+pass_percentage = 80
+max_attempts = 3
+allow_override = true
+max_files = 30
+max_context_chars = 100000
