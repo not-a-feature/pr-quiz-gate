@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from cryptography.fernet import Fernet, InvalidToken
+from jsonschema import ValidationError
 
 import install
 import quiz_gate as gate
@@ -73,6 +74,13 @@ class GateTests(unittest.TestCase):
         item["options"] = ["one", "two", "three", "four"]
         item["correct_option"] = "A"
         with self.assertRaises(AssertionError):
+            gate.validate_quiz({"summary": "Choice", "questions": [item]}, self.cfg)
+
+    def test_multiple_choice_answer_text_cannot_replace_option_letter(self):
+        item = question(question_type="multiple_choice")
+        item["options"] = ["one", "two", "three", "four"]
+        item["correct_option"] = "A. one"
+        with self.assertRaises(ValidationError):
             gate.validate_quiz({"summary": "Choice", "questions": [item]}, self.cfg)
 
     def test_empty_or_duplicate_options_rejected(self):
